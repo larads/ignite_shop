@@ -6,6 +6,8 @@ import { GetStaticPaths, GetStaticProps } from "next"
 
 import { stripe } from "@/lib/stripe"
 import { ImageContainer, Loading, ProductContainer, ProductDetails } from "@/styles/pages/product"
+import { useState } from "react"
+import axios from "axios"
 
 interface ProductProps {
     product: {
@@ -14,11 +16,13 @@ interface ProductProps {
         imageUrl: string;
         price: string;
         description: string;
+        defaultPriceId: string;
     }
 }
 
 export default function Product({ product }: ProductProps) {
     const { isFallback } = useRouter()
+    const [isCreatingCheckoutSession, setIsCreatingCheckoutSession] = useState(false)
 
     if (isFallback) {
         return (
@@ -26,6 +30,22 @@ export default function Product({ product }: ProductProps) {
                 <CircularProgress color="success" size={50} />
             </Loading>
         )
+    }
+
+    async function handleBuyProduct() {
+        try {
+            setIsCreatingCheckoutSession(true)
+            const response = await axios.post('/api/checkout', {
+
+                priceId: product.defaultPriceId
+            })
+            const { checkoutUrl } = response.data;
+
+            window.location.href = checkoutUrl
+        } catch (err) {
+            setIsCreatingCheckoutSession(false)
+            alert('Falha ao redirecionar ao checkout!')
+        }
     }
 
     return (
@@ -41,7 +61,7 @@ export default function Product({ product }: ProductProps) {
                 <p>{product.description}</p>
 
 
-                <button>
+                <button onClick={handleBuyProduct} disabled={isCreatingCheckoutSession}>
                     Comprar agora
                 </button>
             </ProductDetails>
@@ -77,7 +97,9 @@ export const getStaticProps: GetStaticProps<any, { id: string }> = async ({ para
                     style: 'currency',
                     currency: 'BRL'
                 }).format(price.unit_amount! / 100),
-                description: product.description
+                description: product.description,
+                defaultPriceId: price.id
+
             }
         },
         revalidate: 60 * 60 * 1,
